@@ -12,7 +12,7 @@ PRAKTIKUM_TOKEN = os.getenv("PRAKTIKUM_TOKEN")
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 URL = 'https://praktikum.yandex.ru/api/user_api/homework_statuses/'
-STATUSES = {
+VERDICTS = {
     'rejected': 'К сожалению в работе нашлись ошибки.',
     'approved': ('Ревьюеру всё понравилось, можно приступать к следующему'
                  ' уроку.'),
@@ -29,16 +29,21 @@ EXCEPTION_APPEARED = (
 )
 MESSAGE = 'Отправка сообщения в телеграм: {message}'
 BOT_EXCEPTION = 'Бот столкнулся с ошибкой: {exception}'
+START = 'Запуск бота-ассистента'
+MESSAGE_SENT = 'Сообщение отправлено'
+RESPONSES = {
+    'error': 'Ошибка: {error}, ' + RESPONSE_PARAMS,
+    'code': 'Код ответа: {code}, ' + RESPONSE_PARAMS
+}
 
 
 def parse_homework_status(homework):
     name = homework['homework_name']
     status = homework['status']
-    if 'homework_name' not in homework or 'status' not in homework:
-        raise TypeError(UNEXPECTED_STATUS.format(status=status))
-    verdict = STATUSES[status].format(homework_name=name)
-    if status == 'reviewing':
-        return verdict
+    if status in VERDICTS:
+        verdict = VERDICTS[status].format(homework_name=name)
+    else:
+        raise KeyError(UNEXPECTED_STATUS.format(status=status))
     return APPROVED_HOMEWORK.format(
         homework_name=name,
         verdict=verdict
@@ -58,6 +63,14 @@ def get_homework_statuses(current_timestamp):
             exception=exception,
             **request_params
         ))
+    response_json = response.json()
+    for response_name, response_value in RESPONSES.items():
+        if response_name in response_json:
+            raise RuntimeError(response_value.format(
+                response_name=response_value,
+                status=response.status_code,
+                **request_params
+            ))
     return response.json()
 
 
@@ -68,12 +81,7 @@ def send_message(message, bot_client):
 
 def main():
     bot_client = telegram.Bot(token=TELEGRAM_TOKEN)
-    logging.basicConfig(
-        level=logging.DEBUG,
-        filename=__file__ + '.log',
-        format='%(asctime)s %(name)s %(levelname)s: %(message)s'
-    )
-    logging.debug('Запуск бота-ассистента')
+    logging.debug(START)
     current_timestamp = int(time.time())  # начальное значение timestamp
 
     while True:
@@ -83,7 +91,7 @@ def main():
                 send_message(
                     parse_homework_status(new_homework.get('homeworks')[0]),
                     bot_client)
-                logging.info('Сообщение отправлено')
+                logging.info(MESSAGE_SENT)
             current_timestamp = new_homework.get(
                 'current_date', current_timestamp)  # обновить timestamp
             time.sleep(300)  # опрашивать раз в пять минут
@@ -94,4 +102,9 @@ def main():
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.DEBUG,
+        filename=__file__ + '.log',
+        format='%(asctime)s %(name)s %(levelname)s: %(message)s'
+    )
     main()
