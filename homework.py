@@ -38,12 +38,11 @@ RESPONSES = {
 
 
 def parse_homework_status(homework):
-    name = homework['homework_name']
     status = homework['status']
-    if status in VERDICTS:
-        verdict = VERDICTS[status].format(homework_name=name)
-    else:
+    if status not in VERDICTS:
         raise KeyError(UNEXPECTED_STATUS.format(status=status))
+    name = homework['homework_name']
+    verdict = VERDICTS[status].format(homework_name=name)
     return APPROVED_HOMEWORK.format(
         homework_name=name,
         verdict=verdict
@@ -68,10 +67,9 @@ def get_homework_statuses(current_timestamp):
         if response_name in response_json:
             raise RuntimeError(response_value.format(
                 response_name=response_value,
-                status=response.status_code,
                 **request_params
             ))
-    return response.json()
+    return response_json
 
 
 def send_message(message, bot_client):
